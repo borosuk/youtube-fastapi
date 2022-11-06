@@ -70,6 +70,11 @@ def credentials_to_dict(credentials):
     }
 
 
+@app.get("/")
+async def root(request: Request):
+    return {"root": config['APP_TITLE']}
+
+
 @app.get("/authorize")
 async def authorize(request: Request):
     # Create flow instance to manage the OAuth 2.0 Authorization Grant Flow steps.
@@ -99,9 +104,7 @@ async def authorize(request: Request):
 async def oauth2callback(request: Request):
     state = request.session['state']
 
-    flow = google_auth_oauthlib.flow.Flow.from_client_secrets_file(
-        CLIENT_SECRETS_FILE, scopes=SCOPES, state=state
-    )
+    flow = google_auth_oauthlib.flow.Flow.from_client_secrets_file(CLIENT_SECRETS_FILE, scopes=SCOPES, state=state)
     flow.redirect_uri = request.url_for('oauth2callback')
 
     # Use the authorization server's response to fetch the OAuth 2.0 tokens.
@@ -113,17 +116,15 @@ async def oauth2callback(request: Request):
     credentials = flow.credentials
     request.session['credentials'] = credentials_to_dict(credentials)
 
-    return RedirectResponse(app.url_path_for(request.session['last_path']))
+    return RedirectResponse(app.url_path_for(request.session.get('last_path', 'root')))
 
 
 @app.get('/revoke')
-def revoke(request: Request):
+async def revoke(request: Request):
     if 'credentials' not in request.session:
         return {"message": "You need to authorize before testing the code to revoke credentials."}
 
-    credentials = google.oauth2.credentials.Credentials(
-        **request.session['credentials']
-    )
+    credentials = google.oauth2.credentials.Credentials(**request.session['credentials'])
 
     revoke = requests.post(
         'https://oauth2.googleapis.com/revoke',
@@ -139,7 +140,7 @@ def revoke(request: Request):
 
 
 @app.get('/clear')
-def clear_credentials(request: Request):
+async def clear_credentials(request: Request):
     if 'credentials' in request.session:
         del request.session['credentials']
 
@@ -150,17 +151,15 @@ def clear_credentials(request: Request):
 
 
 @app.get('/channel')
-def channel(request: Request):
+async def get_channel(request: Request):
     if 'credentials' not in request.session:
-        request.session['last_path'] = channel.__name__
+        request.session['last_path'] = get_channel.__name__
         return RedirectResponse(app.url_path_for('authorize'))
 
     # Load credentials from the session.
-    credentials = YouTubeHandler.read_credentials(request.session['credentials'])
+    credentials = google.oauth2.credentials.Credentials(**request.session['credentials'])
 
-    youtube = googleapiclient.discovery.build(
-        API_SERVICE_NAME, API_VERSION, credentials=credentials
-    )
+    youtube = googleapiclient.discovery.build(API_SERVICE_NAME, API_VERSION, credentials=credentials)
 
     channel = youtube.channels().list(mine=True, part='snippet,contentDetails').execute()
 
@@ -172,19 +171,15 @@ def channel(request: Request):
 
 
 @app.get('/playlists')
-def playlists(request: Request):
+async def get_playlists(request: Request):
     if 'credentials' not in request.session:
-        request.session['last_path'] = playlists.__name__
+        request.session['last_path'] = get_playlists.__name__
         return RedirectResponse(app.url_path_for('authorize'))
 
     # Load credentials from the session.
-    credentials = google.oauth2.credentials.Credentials(
-        **request.session['credentials']
-    )
+    credentials = google.oauth2.credentials.Credentials(**request.session['credentials'])
 
-    youtube = googleapiclient.discovery.build(
-        API_SERVICE_NAME, API_VERSION, credentials=credentials
-    )
+    youtube = googleapiclient.discovery.build(API_SERVICE_NAME, API_VERSION, credentials=credentials)
 
     playlists = youtube.playlists().list(
         part="snippet,contentDetails",
@@ -199,6 +194,26 @@ def playlists(request: Request):
     return playlists
 
 
-@app.get("/")
-async def root(request: Request):
-    return {"root": "Welcome to FAYT"}
+@app.get('/videos')
+async def get_videos(request: Request):
+    if 'credentials' not in request.session:
+        request.session['last_path'] = get_videos.__name__
+        return RedirectResponse(app.url_path_for('authorize'))
+
+    # Load credentials from the session.
+    credentials = google.oauth2.credentials.Credentials(**request.session['credentials'])
+
+    youtube = googleapiclient.discovery.build(API_SERVICE_NAME, API_VERSION, credentials=credentials)
+
+    videos = youtube.search().list(
+        part="snippet",
+        forMine=True,
+        maxResults=25,
+        type="video"
+    ).execute()
+
+    # Save credentials back to session in case access token was refreshed.
+    # ACTION ITEM: In a production app, you likely want to save these credentials in a persistent database instead.
+    request.session['credentials'] = credentials_to_dict(credentials)
+
+    return videos
