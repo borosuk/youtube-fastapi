@@ -1,3 +1,4 @@
+from models import *
 from dotenv import dotenv_values
 from starlette.middleware.sessions import SessionMiddleware
 
@@ -150,7 +151,7 @@ async def clear_credentials(request: Request):
     return RedirectResponse(app.url_path_for('root'))
 
 
-@app.get('/channel')
+@app.get('/channel', response_model=ChannelRoot)
 async def get_channel(request: Request):
     if 'credentials' not in request.session:
         request.session['last_path'] = get_channel.__name__
@@ -170,7 +171,7 @@ async def get_channel(request: Request):
     return channel
 
 
-@app.get('/playlists')
+@app.get('/playlists', response_model=PlaylistRoot)
 async def get_playlists(request: Request):
     if 'credentials' not in request.session:
         request.session['last_path'] = get_playlists.__name__
@@ -194,7 +195,7 @@ async def get_playlists(request: Request):
     return playlists
 
 
-@app.get('/videos')
+@app.get('/videos', response_model=VideoRoot)
 async def get_videos(request: Request):
     if 'credentials' not in request.session:
         request.session['last_path'] = get_videos.__name__

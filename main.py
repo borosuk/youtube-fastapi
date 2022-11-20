@@ -21,8 +21,8 @@ def kill_processes(procs: dict):
 if __name__ == '__main__':
 
     main_server = {
-        "https_redirect": Popen(['python3', '-m', 'https_redirect']), # start the redirect process
-        "server": Popen(['python3', '-m', 'server']) # start the main process
+        "https_redirect": Popen(['python', '-m', 'https_redirect']), # start the redirect process
+        "server": Popen(['python', '-m', 'server']) # start the main process
     }
 
     for k in main_server:
